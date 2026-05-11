@@ -57,7 +57,10 @@ def _build_context(docs: list[Any]) -> str:
     parts = []
     for i, doc in enumerate(docs, 1):
         m = doc.metadata
-        header = f"[Source {i} | {m.get('insurer','?')} | Page {m.get('page_number','?')}]"
+        header = (
+            f"[Source {i} | {m.get('policy_name','?')} | "
+            f"{m.get('insurer','?')} | Page {m.get('page_number','?')}]"
+        )
         parts.append(f"{header}\n{doc.page_content}")
     return "\n\n---\n\n".join(parts)
 
@@ -134,6 +137,7 @@ def answer_query(
         {
             "manual_id": doc.metadata.get("manual_id"),
             "page_number": doc.metadata.get("page_number"),
+            "policy_name": doc.metadata.get("policy_name"),
             "insurer": doc.metadata.get("insurer"),
             "category": doc.metadata.get("category"),
             "filename": doc.metadata.get("filename"),

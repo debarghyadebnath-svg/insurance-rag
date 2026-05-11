@@ -10,6 +10,8 @@ from langchain_qdrant import QdrantVectorStore, FastEmbedSparse
 from qdrant_client import QdrantClient, models
 from qdrant_client.http.models import Distance, VectorParams
 
+from pdf_parser import normalize_policy_name
+
 # Using Nomic API directly
 EMBEDDING_MODEL = "nomic-embed-text-v1.5"
 VECTOR_SIZE = 768
@@ -34,6 +36,16 @@ def _ensure_collection(client: QdrantClient) -> None:
                 )
             }
         )
+    client.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name="metadata.manual_id",
+        field_schema=models.PayloadSchemaType.INTEGER,
+    )
+    client.create_payload_index(
+        collection_name=COLLECTION_NAME,
+        field_name="metadata.policy_name",
+        field_schema=models.PayloadSchemaType.KEYWORD,
+    )
 
 
 def index_pdf_pages(
@@ -42,6 +54,7 @@ def index_pdf_pages(
     insurer: str,
     category: str,
     filename: str,
+    policy_name: str | None = None,
 ) -> None:
     """
     Chunk the extracted pages, embed with Nomic API (nomic-embed-text),
@@ -49,6 +62,7 @@ def index_pdf_pages(
     """
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     documents: list[Document] = []
+    resolved_policy_name = policy_name or normalize_policy_name(filename)
 
     for page in pages:
         chunks = splitter.split_text(page["text"])
@@ -61,6 +75,7 @@ def index_pdf_pages(
                     "insurer": insurer,
                     "category": category,
                     "filename": filename,
+                    "policy_name": resolved_policy_name,
                 },
             ))
 

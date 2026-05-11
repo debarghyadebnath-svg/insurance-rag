@@ -21,6 +21,7 @@ def initialize_database() -> None:
                 filename             TEXT    NOT NULL,
                 insurer              TEXT    NOT NULL,
                 category             TEXT    NOT NULL,
+                policy_name          TEXT    NOT NULL DEFAULT '',
                 status               TEXT    NOT NULL DEFAULT 'indexing',
                 vector_collection_id TEXT,
                 created_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -36,6 +37,14 @@ def initialize_database() -> None:
                 created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        existing_columns = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(policy_manuals)").fetchall()
+        }
+        if "policy_name" not in existing_columns:
+            conn.execute(
+                "ALTER TABLE policy_manuals ADD COLUMN policy_name TEXT NOT NULL DEFAULT ''"
+            )
         conn.commit()
 
 
@@ -52,15 +61,16 @@ def insert_manual(
     filename: str,
     insurer: str,
     category: str,
+    policy_name: str,
     vector_collection_id: str,
 ) -> int:
     """Insert a new manual record and return its id."""
     with get_connection() as conn:
         cursor = conn.execute(
             """INSERT INTO policy_manuals
-               (file_hash, filename, insurer, category, status, vector_collection_id)
-               VALUES (?, ?, ?, ?, 'indexing', ?)""",
-            (file_hash, filename, insurer, category, vector_collection_id),
+               (file_hash, filename, insurer, category, policy_name, status, vector_collection_id)
+               VALUES (?, ?, ?, ?, ?, 'indexing', ?)""",
+            (file_hash, filename, insurer, category, policy_name, vector_collection_id),
         )
         conn.commit()
         return cursor.lastrowid
@@ -87,6 +97,15 @@ def set_manual_status(manual_id: int, status: str) -> None:
         conn.execute(
             "UPDATE policy_manuals SET status = ? WHERE id = ?",
             (status, manual_id),
+        )
+        conn.commit()
+
+
+def set_manual_policy_name(manual_id: int, policy_name: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE policy_manuals SET policy_name = ? WHERE id = ?",
+            (policy_name, manual_id),
         )
         conn.commit()
 

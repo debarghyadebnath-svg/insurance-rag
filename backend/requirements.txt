@@ -15,3 +15,4 @@ langchain-nomic
 fastembed
 cohere
 langchain-cohere
+llama-cloud>=2.1

@@ -43,10 +43,18 @@ def _process_pdf(
     insurer: str,
     category: str,
     filename: str,
+    policy_name: str,
 ) -> None:
     try:
         pages = pdf_parser.extract_pages(pdf_path)
-        embedder.index_pdf_pages(pages, manual_id, insurer, category, filename)
+        embedder.index_pdf_pages(
+            pages,
+            manual_id,
+            insurer,
+            category,
+            filename,
+            policy_name,
+        )
         database.set_manual_status(manual_id, "active")
     except Exception:
         database.set_manual_status(manual_id, "failed")
@@ -101,6 +109,7 @@ def upload_manual(
 ) -> dict[str, Any]:
     content = file.file.read()
     file_hash = hashlib.sha256(content).hexdigest()
+    policy_name = pdf_parser.normalize_policy_name(file.filename)
 
     if database.find_manual_by_hash(file_hash):
         raise HTTPException(status_code=409, detail="This document is already indexed.")
@@ -110,6 +119,7 @@ def upload_manual(
         filename=file.filename,
         insurer=insurer,
         category=category,
+        policy_name=policy_name,
         vector_collection_id=embedder.COLLECTION_NAME,
     )
 
@@ -117,10 +127,21 @@ def upload_manual(
     pdf_path.write_bytes(content)
 
     background_tasks.add_task(
-        _process_pdf, pdf_path, manual_id, insurer, category, file.filename
+        _process_pdf,
+        pdf_path,
+        manual_id,
+        insurer,
+        category,
+        file.filename,
+        policy_name,
     )
 
-    return {"id": manual_id, "status": "indexing", "filename": file.filename}
+    return {
+        "id": manual_id,
+        "status": "indexing",
+        "filename": file.filename,
+        "policy_name": policy_name,
+    }
 
 
 @app.get("/api/manuals/{manual_id}")
