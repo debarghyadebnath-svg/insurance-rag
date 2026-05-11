@@ -36,16 +36,21 @@ def _ensure_collection(client: QdrantClient) -> None:
                 )
             }
         )
-    client.create_payload_index(
-        collection_name=COLLECTION_NAME,
-        field_name="metadata.manual_id",
-        field_schema=models.PayloadSchemaType.INTEGER,
-    )
-    client.create_payload_index(
-        collection_name=COLLECTION_NAME,
-        field_name="metadata.policy_name",
-        field_schema=models.PayloadSchemaType.KEYWORD,
-    )
+    collection_info = client.get_collection(COLLECTION_NAME)
+    existing_payload_schema = getattr(collection_info, "payload_schema", {}) or {}
+
+    if "metadata.manual_id" not in existing_payload_schema:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="metadata.manual_id",
+            field_schema=models.PayloadSchemaType.INTEGER,
+        )
+    if "metadata.policy_name" not in existing_payload_schema:
+        client.create_payload_index(
+            collection_name=COLLECTION_NAME,
+            field_name="metadata.policy_name",
+            field_schema=models.PayloadSchemaType.KEYWORD,
+        )
 
 
 def index_pdf_pages(
@@ -78,6 +83,8 @@ def index_pdf_pages(
                     "policy_name": resolved_policy_name,
                 },
             ))
+    if not documents:
+        return
 
     embeddings = NomicEmbeddings(model=EMBEDDING_MODEL, nomic_api_key=os.environ.get("NOMIC_API_KEY"))
     sparse_embeddings = FastEmbedSparse(model_name="Qdrant/bm25")

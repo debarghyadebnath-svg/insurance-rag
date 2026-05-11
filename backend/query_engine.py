@@ -4,8 +4,6 @@ from typing import Any
 
 from langchain_nomic.embeddings import NomicEmbeddings
 from langchain_qdrant import QdrantVectorStore, FastEmbedSparse, RetrievalMode
-from langchain_cohere import CohereRerank
-from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -74,6 +72,10 @@ def retrieve_documents(query: str, manual_ids: list[int] | None = None) -> list[
         url=os.environ["QDRANT_URL"],
         api_key=os.environ.get("QDRANT_API_KEY"),
     )
+    existing = {c.name for c in client.get_collections().collections}
+    if COLLECTION_NAME not in existing:
+        return []
+
     vector_store = QdrantVectorStore(
         client=client,
         collection_name=COLLECTION_NAME,
@@ -94,20 +96,8 @@ def retrieve_documents(query: str, manual_ids: list[int] | None = None) -> list[
             ]
         )
 
-    base_retriever = vector_store.as_retriever(search_kwargs=search_kwargs)
-
-    compressor = CohereRerank(
-        cohere_api_key=os.environ.get("COHERE_API_KEY"),
-        model="rerank-english-v3.0",
-        top_n=5
-    )
-    
-    compression_retriever = ContextualCompressionRetriever(
-        base_compressor=compressor,
-        base_retriever=base_retriever
-    )
-
-    return compression_retriever.invoke(query)
+    retriever = vector_store.as_retriever(search_kwargs=search_kwargs)
+    return retriever.invoke(query)
 
 
 def answer_query(
@@ -119,6 +109,12 @@ def answer_query(
     Optionally filter to specific manuals by their SQLite id.
     """
     docs = retrieve_documents(query, manual_ids)
+    if not docs:
+        return {
+            "answer": "I could not find relevant policy content yet. Please confirm your manuals are indexed and in active status, then try again.",
+            "sources": [],
+            "documents": [],
+        }
 
     # Clean the retrieved documents to prevent JSON parsing errors
     for doc in docs:
